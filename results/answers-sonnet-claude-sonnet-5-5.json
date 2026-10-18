@@ -1,0 +1,332 @@
+{
+ "model": "claude-sonnet-5-5",
+ "source": "Anthropic Messages API, one prompt per host asking for JSON (see README)",
+ "answered": "2026-10-04",
+ "note": "run 1 of the prompt; forward order only (one fixed category list), so there is no category_rev; ms is wall-clock for the one request per host over the network, on 2026-10-04",
+ "hosts": {
+  "media.net": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.95,
+   "conf": 0.9,
+   "in_tokens": 221,
+   "out_tokens": 43,
+   "ms": 1957
+  },
+  "3lift.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.98,
+   "conf": 0.97,
+   "in_tokens": 224,
+   "out_tokens": 43,
+   "ms": 1300
+  },
+  "bidswitch.net": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.98,
+   "conf": 0.95,
+   "in_tokens": 225,
+   "out_tokens": 43,
+   "ms": 1353
+  },
+  "criteo.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.99,
+   "conf": 0.97,
+   "in_tokens": 223,
+   "out_tokens": 43,
+   "ms": 1308
+  },
+  "criteo.net": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.98,
+   "conf": 0.95,
+   "in_tokens": 223,
+   "out_tokens": 43,
+   "ms": 1392
+  },
+  "adtrafficquality.google": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.97,
+   "conf": 0.85,
+   "in_tokens": 227,
+   "out_tokens": 159,
+   "ms": 2203
+  },
+  "app-ads-services.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.85,
+   "conf": 0.7,
+   "in_tokens": 226,
+   "out_tokens": 275,
+   "ms": 3339
+  },
+  "doubleclick.net": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.99,
+   "conf": 0.99,
+   "in_tokens": 225,
+   "out_tokens": 43,
+   "ms": 1580
+  },
+  "googlesyndication.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 1.0,
+   "conf": 0.97,
+   "in_tokens": 226,
+   "out_tokens": 43,
+   "ms": 1410
+  },
+  "adnxs.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.99,
+   "conf": 0.98,
+   "in_tokens": 224,
+   "out_tokens": 43,
+   "ms": 1503
+  },
+  "pubmatic.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.99,
+   "conf": 0.97,
+   "in_tokens": 225,
+   "out_tokens": 43,
+   "ms": 1488
+  },
+  "rubiconproject.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.99,
+   "conf": 0.97,
+   "in_tokens": 226,
+   "out_tokens": 43,
+   "ms": 1426
+  },
+  "taboola.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.98,
+   "conf": 0.97,
+   "in_tokens": 223,
+   "out_tokens": 43,
+   "ms": 1290
+  },
+  "outbrain.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.98,
+   "conf": 0.95,
+   "in_tokens": 224,
+   "out_tokens": 43,
+   "ms": 1655
+  },
+  "amazon-adsystem.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.97,
+   "conf": 0.96,
+   "in_tokens": 228,
+   "out_tokens": 43,
+   "ms": 1635
+  },
+  "adsrvr.org": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.98,
+   "conf": 0.97,
+   "in_tokens": 225,
+   "out_tokens": 43,
+   "ms": 1503
+  },
+  "openx.net": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.98,
+   "conf": 0.97,
+   "in_tokens": 222,
+   "out_tokens": 43,
+   "ms": 1410
+  },
+  "casalemedia.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.98,
+   "conf": 0.97,
+   "in_tokens": 225,
+   "out_tokens": 43,
+   "ms": 1471
+  },
+  "google-analytics.com": {
+   "category": "tracking",
+   "unwanted": 3,
+   "p_adtech": 0.9,
+   "conf": 0.95,
+   "in_tokens": 225,
+   "out_tokens": 43,
+   "ms": 1314
+  },
+  "scorecardresearch.com": {
+   "category": "tracking",
+   "unwanted": 3,
+   "p_adtech": 0.6,
+   "conf": 0.9,
+   "in_tokens": 227,
+   "out_tokens": 43,
+   "ms": 1263
+  },
+  "moatads.com": {
+   "category": "advertising",
+   "unwanted": 3,
+   "p_adtech": 0.95,
+   "conf": 0.9,
+   "in_tokens": 223,
+   "out_tokens": 43,
+   "ms": 1479
+  },
+  "mixpanel.com": {
+   "category": "tracking",
+   "unwanted": 2,
+   "p_adtech": 0.1,
+   "conf": 0.85,
+   "in_tokens": 225,
+   "out_tokens": 43,
+   "ms": 1333
+  },
+  "hotjar.com": {
+   "category": "tracking",
+   "unwanted": 2,
+   "p_adtech": 0.2,
+   "conf": 0.9,
+   "in_tokens": 224,
+   "out_tokens": 43,
+   "ms": 1510
+  },
+  "segment.io": {
+   "category": "tracking",
+   "unwanted": 2,
+   "p_adtech": 0.2,
+   "conf": 0.8,
+   "in_tokens": 222,
+   "out_tokens": 43,
+   "ms": 1633
+  },
+  "branch.io": {
+   "category": "tracking",
+   "unwanted": 2,
+   "p_adtech": 0.6,
+   "conf": 0.7,
+   "in_tokens": 222,
+   "out_tokens": 188,
+   "ms": 2766
+  },
+  "www.nytimes.com": {
+   "category": "content",
+   "unwanted": 0,
+   "p_adtech": 0.02,
+   "conf": 0.97,
+   "in_tokens": 226,
+   "out_tokens": 41,
+   "ms": 1319
+  },
+  "api.github.com": {
+   "category": "service",
+   "unwanted": 0,
+   "p_adtech": 0.01,
+   "conf": 0.98,
+   "in_tokens": 223,
+   "out_tokens": 41,
+   "ms": 1269
+  },
+  "www.apple.com": {
+   "category": "content",
+   "unwanted": 0,
+   "p_adtech": 0.02,
+   "conf": 0.95,
+   "in_tokens": 224,
+   "out_tokens": 41,
+   "ms": 1200
+  },
+  "fonts.gstatic.com": {
+   "category": "content",
+   "unwanted": 1,
+   "p_adtech": 0.1,
+   "conf": 0.9,
+   "in_tokens": 228,
+   "out_tokens": 41,
+   "ms": 1287
+  },
+  "time.cloudflare.com": {
+   "category": "service",
+   "unwanted": 0,
+   "p_adtech": 0.02,
+   "conf": 0.97,
+   "in_tokens": 227,
+   "out_tokens": 41,
+   "ms": 1326
+  },
+  "www.wikipedia.org": {
+   "category": "content",
+   "unwanted": 0,
+   "p_adtech": 0.01,
+   "conf": 0.98,
+   "in_tokens": 227,
+   "out_tokens": 41,
+   "ms": 1350
+  },
+  "cdn.jsdelivr.net": {
+   "category": "content",
+   "unwanted": 0,
+   "p_adtech": 0.02,
+   "conf": 0.95,
+   "in_tokens": 230,
+   "out_tokens": 41,
+   "ms": 1534
+  },
+  "accounts.google.com": {
+   "category": "service",
+   "unwanted": 0,
+   "p_adtech": 0.05,
+   "conf": 0.97,
+   "in_tokens": 225,
+   "out_tokens": 41,
+   "ms": 1728
+  },
+  "ocsp.digicert.com": {
+   "category": "service",
+   "unwanted": 0,
+   "p_adtech": 0.01,
+   "conf": 0.97,
+   "in_tokens": 228,
+   "out_tokens": 41,
+   "ms": 1294
+  },
+  "updates.tailscale.com": {
+   "category": "service",
+   "unwanted": 1,
+   "p_adtech": 0.01,
+   "conf": 0.93,
+   "in_tokens": 227,
+   "out_tokens": 41,
+   "ms": 1313
+  },
+  "www.quad9.net": {
+   "category": "service",
+   "unwanted": 0,
+   "p_adtech": 0.01,
+   "conf": 0.97,
+   "in_tokens": 225,
+   "out_tokens": 41,
+   "ms": 1288
+  }
+ }
+}
