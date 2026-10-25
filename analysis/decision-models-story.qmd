@@ -1,0 +1,390 @@
+---
+title: "OpenAI's Decisions API, put to a household test"
+format:
+  closeread-html:
+    embed-resources: true
+    remove-header-space: true
+    css: story.css
+    include-in-header:
+      text: |
+        <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    cr-section:
+      layout: sidebar-left
+cr-style:
+  narrative-background-color-sidebar: "#0f1512"
+  narrative-text-color-sidebar: "#e2e9e4"
+  narrative-background-color-overlay: "#161f1bee"
+  narrative-text-color-overlay: "#e2e9e4"
+  narrative-font-family: '"Libre Franklin", "Helvetica Neue", Arial, sans-serif'
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+source("_data.R")
+# Public-safe by construction: this page only shows the 36 labelled (public) hostnames and aggregates.
+# Dark surface #0f1512; group colours are the ones validated for it in decision-models.qmd (dataviz validator, all pairs, dark).
+group_cols <- c("ad exchange" = "#d95926", "tracker" = "#3987e5", "legitimate" = "#199e70")
+theme_story <- function() theme_minimal(base_size = 12, base_family = "sans") + theme(
+  plot.background = element_rect(fill = "#0f1512", colour = NA), panel.background = element_rect(fill = "#0f1512", colour = NA),
+  text = element_text(colour = "#e2e9e4"), axis.text = element_text(colour = "#93a39a"),
+  panel.grid = element_blank(), legend.position = "none", plot.margin = margin(4, 8, 4, 4))
+
+abbr <- c(advertising = "ad", tracking = "tracking", telemetry = "telemetry", malicious = "malware",
+          content = "content", service = "service", unknown = "?")
+OA <- "gpt-6-luna"   # the model behind OpenAI's Decisions API; the story calls it the Decisions API
+col_order <- intersect(c(OA, "Jev", "Strands 2B", "Strands E4B", "Sonnet"), models_all)
+col_labels <- c(`gpt-6-luna` = "Decisions API", `Jev` = "Jev", `Strands 2B` = "Strands 2B", `Strands E4B` = "Strands E4B", `Sonnet` = "Sonnet")
+tiles <- lab_all
+tiles$cls <- ifelse(tiles$category %in% BLOCK, "block", ifelse(tiles$category == "unknown", "unknown", "other"))
+tiles$txt <- abbr[tiles$category]
+top3 <- intersect(c(OA, "Jev", "Sonnet"), models_all)
+strands <- c("Strands 2B", "Strands E4B")
+
+# One grid per group, so a sticky fits one screen. Highlight = colour: inside the focus, a blocking answer takes the
+# group's colour (what the host is); everything outside the focus stays readable in greys.
+tile_plot <- function(g, focus_models = models_all, focus_hosts = NULL) {
+  d <- tiles[tiles$group == g, ]
+  d$hostname <- factor(d$hostname, levels = rev(sort(unique(d$hostname))))
+  d$model <- factor(as.character(d$model), levels = col_order)
+  on <- d$model %in% focus_models & (is.null(focus_hosts) | d$hostname %in% focus_hosts)
+  d$key <- paste(d$cls, ifelse(on, "on", "off"))
+  fills <- c(`block on` = group_cols[[g]], `other on` = "#2a3631", `unknown on` = "#0f1512",
+             `block off` = "#3a4741", `other off` = "#19221e", `unknown off` = "#0f1512")
+  inks <- c(`block on` = "#ffffff", `other on` = "#e2e9e4", `unknown on` = "#e2e9e4",
+            `block off` = "#b9c4be", `other off` = "#5f6d66", `unknown off` = "#4a5550")
+  ggplot(d, aes(model, hostname)) +
+    geom_tile(aes(fill = key), colour = "#0f1512", linewidth = 1.2) +
+    geom_text(aes(label = txt, colour = key), size = 3.3, family = "sans", fontface = "bold") +
+    scale_fill_manual(values = fills) + scale_colour_manual(values = inks) +
+    scale_x_discrete(position = "top", labels = col_labels) + labs(x = NULL, y = NULL) + theme_story() +
+    theme(axis.text.x = element_text(face = "bold", colour = "#e2e9e4"))
+}
+cat_n <- function(m, g) { d <- tiles[tiles$model == m & tiles$group == g, ]; sum(d$cls == "block") }
+n_g <- function(g) sum(hosts$group == g)
+ag <- "ad exchange"; tg <- "tracker"; lg <- "legitimate"
+jev_missed <- tiles$hostname[tiles$group == ag & tiles$model == "Jev" & tiles$cls != "block"]
+oa_missed <- tiles$hostname[tiles$group == ag & tiles$model == OA & tiles$cls != "block"]
+legit_flags <- sum(tiles$group == lg & tiles$cls == "block")
+oa_in <- mstat(OA, "tokens_in_total"); oa_n <- mstat(OA, "n")   # every host asked, household included (totals only)
+oa_s <- mstat(OA, "ms_median") / 1000
+code <- function(x) paste(sprintf("<code>%s</code>", x), collapse = " and ")
+```
+
+```{=html}
+<header class="story-hero">
+  <p class="kicker">Decision models</p>
+  <h1>OpenAI’s Decisions API, put to a household test</h1>
+  <p class="dek">OpenAI’s new API answers with typed judgements a program can act on, not with chat. One home network asked it which unfamiliar hostnames are ads, alongside TypeSafe’s Jev, two open models that run on your own computer, and a chatbot.</p>
+  <p class="byline">October 2026 · tests run on 18 October</p>
+</header>
+```
+
+::: {.story-body}
+
+::: {.lede}
+This month OpenAI opened its Decisions API to developers as a public beta. The model behind it, gpt-6-luna, does not write text. You send it a piece of evidence and typed questions, and it sends back probabilities and a confidence that a program can branch on. It has been billed as OpenAI's answer to TypeSafe's Jev, the model that made this kind of "decision model" a product.
+:::
+
+That made it worth trying on a real problem. On 4 October an ad slipped into an iPhone app on a home network, even though every device there filters its lookups through Pi-hole, a small DNS ad blocker. Pi-hole only blocks hostnames that are already on its blocklists; anything new goes straight through. Jev already runs a weekly check of that household's unfamiliar hostnames. Could the Decisions API do the job as well?
+
+Each hostname got the same three questions: *which of seven categories fits? how unwanted is it, from 0 to 4? is it run by an ad-tech company?* The test set was `r nrow(hosts)` hostnames labelled by hand: `r n_g(ag)` ad exchanges, `r n_g(tg)` trackers and `r n_g(lg)` ordinary sites. Jev and two open Strands models answered the same questions, and Anthropic's Sonnet, a general chatbot, got them in plain English as a reference point. None of them could look anything up; each answered from what it already knew.
+
+:::
+
+```{=html}
+<div class="cards">
+  <div class="card lead"><h3>OpenAI Decisions API</h3><p class="who">OpenAI · model gpt-6-luna · public beta</p><dl><dt>Runs</dt><dd>OpenAI's cloud</dd><dt>Price</dt><dd>$0.10 per 1M tokens in, output free</dd></dl></div>
+  <div class="card"><h3>Jev</h3><p class="who">TypeSafe · the household's current check</p><dl><dt>Runs</dt><dd>TypeSafe's cloud</dd><dt>Price</dt><dd>not published</dd></dl></div>
+  <div class="card"><h3>Strands 2B</h3><p class="who">Strands Agents · open weights</p><dl><dt>Runs</dt><dd>on your own computer, offline</dd><dt>Price</dt><dd>free</dd></dl></div>
+  <div class="card"><h3>Strands E4B</h3><p class="who">Strands Agents · open weights</p><dl><dt>Runs</dt><dd>on your own computer, offline</dd><dt>Price</dt><dd>free</dd></dl></div>
+  <div class="card"><h3>Sonnet</h3><p class="who">Anthropic · general chatbot</p><dl><dt>Runs</dt><dd>Anthropic's cloud</dd><dt>Role</dt><dd>reference only</dd></dl></div>
+</div>
+```
+
+```{r tiles, include=FALSE}
+dir.create("story_figs", showWarnings = FALSE)
+save_tile <- function(f, p, rows) ggsave(file.path("story_figs", f), p, width = 6.4, height = 0.36 * rows + 0.7, dpi = 160, bg = "#0f1512")
+save_tile("ads-all.png", tile_plot(ag), n_g(ag))
+save_tile("ads-oa.png", tile_plot(ag, focus_models = OA), n_g(ag))
+save_tile("ads-top.png", tile_plot(ag, focus_models = top3), n_g(ag))
+save_tile("ads-strands.png", tile_plot(ag, focus_models = strands), n_g(ag))
+save_tile("ads-miss.png", tile_plot(ag, focus_hosts = unique(c(jev_missed, oa_missed))), n_g(ag))
+save_tile("trk-all.png", tile_plot(tg), n_g(tg))
+save_tile("legit-all.png", tile_plot(lg), n_g(lg))
+```
+
+:::{.cr-section}
+
+Start with the `r n_g(ag)` <span class="key ad">ad exchanges</span>: companies whose whole business is serving and auctioning ads. Each row is a hostname, each column a model. **A coloured tile means the model put it in a blocking category**: advertising, tracking or malware. @cr-ads
+
+The Decisions API named a blocking category for `r if (cat_n(OA, ag) == n_g(ag)) sprintf("all %d", n_g(ag)) else sprintf("%d of %d", cat_n(OA, ag), n_g(ag))`. @cr-ads-oa
+
+Jev, the household's current check, got `r cat_n("Jev", ag)`, and Sonnet `r cat_n("Sonnet", ag)`. @cr-ads-top
+
+The two Strands models are small enough to run on an ordinary computer with no internet connection. They mostly shrugged: a "?" means they answered *unknown*. The 2B model caught `r cat_n("Strands 2B", ag)` and E4B `r cat_n("Strands E4B", ag)`. @cr-ads-strands
+
+`r if (length(jev_missed) && !length(intersect(jev_missed, oa_missed))) sprintf("The one ad exchange Jev let through, %s, the Decisions API caught.", code(jev_missed)) else if (length(oa_missed)) sprintf("The Decisions API let through %s.", code(oa_missed)) else "Neither the Decisions API nor Jev missed any."` @cr-ads-miss
+
+<span class="key tracker">Trackers</span> are a harder case: they are mostly analytics companies rather than ad sellers. `r trk <- sapply(top3, \(m) cat_n(m, tg)); if (length(unique(trk)) == 1) sprintf("The Decisions API, Jev and Sonnet each called all %d of them", n_g(tg)) else sprintf("The Decisions API called %d of the %d, Jev %d and Sonnet %d", trk[OA], n_g(tg), trk["Jev"], trk["Sonnet"])` a tracker or an ad host; the Strands models managed `r cat_n("Strands 2B", tg)` and `r cat_n("Strands E4B", tg)`. @cr-trk
+
+For a household, the result that matters most is this one. A wrong block breaks a website, and **`r if (legit_flags == 0) "none of the five models" else sprintf("%d answers", legit_flags)` put any of the `r n_g(lg)`** <span class="key legit">ordinary sites</span> **in a blocking category.** @cr-legit
+
+:::{#cr-ads}
+![](story_figs/ads-all.png)
+:::
+
+:::{#cr-ads-oa}
+![](story_figs/ads-oa.png)
+:::
+
+:::{#cr-ads-top}
+![](story_figs/ads-top.png)
+:::
+
+:::{#cr-ads-strands}
+![](story_figs/ads-strands.png)
+:::
+
+:::{#cr-ads-miss}
+![](story_figs/ads-miss.png)
+:::
+
+:::{#cr-trk}
+![](story_figs/trk-all.png)
+:::
+
+:::{#cr-legit}
+![](story_figs/legit-all.png)
+:::
+
+:::
+
+```{=html}
+<div class="stats">
+```
+
+```{r stats, results='asis'}
+stat <- function(n, l) cat(sprintf('<div class="stat"><div class="num">%s</div><div class="lab">%s</div></div>\n', n, l))
+caught <- sapply(models_all, \(m) sum(tiles$model == m & tiles$cls == "block" & tiles$group != lg))
+also <- setdiff(names(caught)[caught == caught[OA]], OA)
+stat(sprintf("%d of %d", caught[OA], sum(hosts$unwanted_host)), sprintf("ad and tracker hosts the Decisions API put in a blocking category%s", if (length(also)) sprintf(" (%s matched it)", paste(also, collapse = " and ")) else ""))
+stat(as.character(sum(tiles$model == OA & tiles$group == lg & tiles$cls == "block")), "ordinary sites it wrongly put in a blocking category")
+stat(sprintf("$%.2f", oa_in * 0.10 / 1e6), sprintf("what the Decisions API cost for all %d hostnames tested", oa_n))
+stat(sprintf("%.1f s", oa_s), "its time per hostname, two requests over the network")
+```
+
+```{=html}
+</div>
+```
+
+```{r more-data, include=FALSE}
+# ---- section 2: confidence (all 263 hostnames, shown only as dots: no names leave this chunk) ----
+conf <- conf_all   # anonymous: one confidence per host asked, household included (data/household-summary.json)
+conf$model <- factor(as.character(conf$model), levels = intersect(col_order, names(dm)))
+dm_order <- levels(conf$model)
+med_c <- sapply(dm_order, \(m) median(conf$c[conf$model == m]))
+hi_c <- sapply(dm_order, \(m) sum(conf$c[conf$model == m] >= 0.85))
+n_c <- sapply(dm_order, \(m) mstat(m, "n"))
+flips <- sapply(dm_order, \(m) mstat(m, "flips"))
+ACC <- "#5fc7ac"   # focus colour for model-level charts (no host groups in them)
+conf_plot <- function(focus) {
+  conf$on <- conf$model %in% focus
+  ggplot(conf, aes(c, model, colour = on)) +
+    geom_vline(xintercept = 0.85, linetype = "dashed", colour = "#93a39a") +
+    annotate("text", x = 0.85, y = length(dm_order) + 0.55, label = "0.85", colour = "#93a39a", size = 3.2, hjust = -0.15, family = "sans") +
+    geom_point(position = position_jitter(height = 0.28, width = 0, seed = 1), size = 1.6, alpha = 0.75) +
+    scale_colour_manual(values = c(`TRUE` = ACC, `FALSE` = "#3a4741")) +
+    scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) + scale_y_discrete(limits = rev(dm_order), labels = col_labels) +
+    labs(x = "confidence in its category (lower of the two option orders)", y = NULL) + theme_story() +
+    theme(axis.text.y = element_text(colour = "#e2e9e4", face = "bold"), panel.grid.major.x = element_line(colour = "#25312b"))
+}
+ggsave("story_figs/conf-all.png", conf_plot(dm_order), width = 7, height = 4.2, dpi = 160, bg = "#0f1512")
+ggsave("story_figs/conf-top.png", conf_plot(c(OA, "Jev")), width = 7, height = 4.2, dpi = 160, bg = "#0f1512")
+ggsave("story_figs/conf-strands.png", conf_plot(strands), width = 7, height = 4.2, dpi = 160, bg = "#0f1512")
+
+# ---- section 3: the decision rule (labelled hosts only) ----
+lab_s <- lab_all; lab_s$model <- factor(as.character(lab_s$model), levels = col_order)
+strip_plot <- function(x, xlab, cut, xlim, focus_group = grp_levels) {
+  lab_s$key <- ifelse(lab_s$group %in% focus_group, as.character(lab_s$group), "off")
+  ggplot(lab_s, aes(.data[[x]], group, colour = key)) +
+    geom_vline(xintercept = cut, linetype = "dashed", colour = "#93a39a") +
+    geom_point(position = position_jitter(height = 0.2, width = 0, seed = 1), size = 2.2, alpha = 0.9) +
+    scale_colour_manual(values = c(group_cols, off = "#3a4741")) + scale_x_continuous(limits = xlim) +
+    scale_y_discrete(limits = rev(grp_levels)) + facet_wrap(~model, ncol = 1, labeller = as_labeller(col_labels)) +
+    labs(x = xlab, y = NULL) + theme_story() +
+    theme(strip.text = element_text(colour = "#e2e9e4", hjust = 0, face = "bold"), panel.grid.major.x = element_line(colour = "#25312b"))
+}
+ggsave("story_figs/score-all.png", strip_plot("unwanted", "unwanted score (0 essential … 4 malicious), dashed line = 2.5", 2.5, c(0, 4)), width = 7, height = 6.6, dpi = 160, bg = "#0f1512")
+ggsave("story_figs/score-trk.png", strip_plot("unwanted", "unwanted score (0 essential … 4 malicious), dashed line = 2.5", 2.5, c(0, 4), "tracker"), width = 7, height = 6.6, dpi = 160, bg = "#0f1512")
+ggsave("story_figs/adtech-trk.png", strip_plot("p_adtech", "probability it is run by an ad-tech company, dashed line = 0.5", 0.5, c(0, 1), "tracker"), width = 7, height = 6.6, dpi = 160, bg = "#0f1512")
+trk_score <- sapply(c(OA, "Jev"), \(m) median(lab_s$unwanted[lab_s$model == m & lab_s$group == tg]))
+trk_adtech <- sapply(c(OA, "Jev"), \(m) sum(lab_s$p_adtech[lab_s$model == m & lab_s$group == tg] >= 0.5))
+
+# weekly-rule verdicts on the 25 unwanted labelled hosts (triage.judge via compare.py -> results/verdicts.json)
+vl <- vd[vd$unwanted_host, ]
+vmods <- intersect(c(OA, "Jev", "Strands 2B", "Strands E4B"), levels(vd$model))
+vc <- do.call(rbind, lapply(vmods, \(m) { d <- vl[vl$model == m, ]
+  data.frame(model = m, verdict = c("blocked automatically", "sent to a person", "missed"),
+             n = c(sum(d$verdict == "block"), sum(d$verdict == "review"), sum(d$verdict == "quiet"))) }))
+vc$model <- factor(vc$model, levels = rev(vmods)); vc$verdict <- factor(vc$verdict, levels = rev(c("blocked automatically", "sent to a person", "missed")))
+vb <- function(m) vc$n[vc$model == m & vc$verdict == "blocked automatically"]
+vr <- function(m) vc$n[vc$model == m & vc$verdict == "sent to a person"]
+vm <- function(m) vc$n[vc$model == m & vc$verdict == "missed"]
+p_rule <- ggplot(vc, aes(n, model, fill = verdict)) +
+  geom_col(width = 0.62, colour = "#0f1512", linewidth = 1) +
+  geom_text(aes(label = ifelse(n > 0, n, ""), colour = verdict), position = position_stack(vjust = 0.5), fontface = "bold", size = 3.6, family = "sans", show.legend = FALSE) +
+  scale_fill_manual(values = c(`blocked automatically` = ACC, `sent to a person` = "#93a39a", missed = "#3a4741")) +
+  scale_colour_manual(values = c(`blocked automatically` = "#0f1512", `sent to a person` = "#0f1512", missed = "#e2e9e4"), guide = "none") +
+  scale_y_discrete(labels = col_labels) + scale_x_continuous(expand = c(0, 0)) +
+  guides(fill = guide_legend(reverse = TRUE)) + labs(x = sprintf("the %d unwanted hostnames, under the weekly rule", sum(hosts$unwanted_host)), y = NULL, fill = NULL) +
+  theme_story() + theme(legend.position = "top", legend.justification = "left", legend.text = element_text(colour = "#e2e9e4"),
+                        axis.text.y = element_text(colour = "#e2e9e4", face = "bold"))
+ggsave("story_figs/rule.png", p_rule, width = 7, height = 3.4, dpi = 160, bg = "#0f1512")
+
+# ---- section 4: household totals only (data/household-summary.json) ----
+H <- hs$household
+hh_n <- H$n
+hh_flag <- sapply(vmods, \(m) H$verdicts[[m]]$block + H$verdicts[[m]]$review); hh_block <- sapply(vmods, \(m) H$verdicts[[m]]$block)
+alone_all <- H$flagged_by[["0"]]
+agree_oa_jev <- H$agreement[[paste("Jev", OA, sep = "|")]]
+oa_new <- H$flagged_not_by_jev[[OA]]
+mal_models <- unlist(H$malicious_both_orders)
+
+# ---- section 5: speed and cost ----
+ms_med <- function(m) mstat(m, "ms_median") / 1000
+ms_n <- function(m) mstat(m, "ms_n")
+```
+
+## How sure is it?
+
+A decision model doesn't just pick an answer; it says how sure it is. A program can use that to act on the easy cases and send the hard ones to a person. Each model was also asked the category question twice, with the options in reverse order, because a model that leans towards the first option listed will change its answer.
+
+:::{.cr-section}
+
+Each dot is one hostname: all `r n_c[[OA]]` that were tested, including the household's own. The further right, the surer the model was of its category. @cr-conf-all
+
+The Decisions API was often sure, though less often than Jev: median confidence `r sprintf("%.2f", med_c[OA])`, with `r hi_c[OA]` of `r n_c[OA]` hostnames at 0.85 or above. Jev was surer (median `r sprintf("%.2f", med_c["Jev"])`, `r hi_c["Jev"]` above 0.85). Reversing the options changed the Decisions API's category for `r flips[OA]` hostnames and Jev's for `r flips["Jev"]`. @cr-conf-top
+
+The Strands models were almost never sure (medians `r sprintf("%.2f", med_c["Strands 2B"])` and `r sprintf("%.2f", med_c["Strands E4B"])`). A model that is unsure of everything gives a program nothing to act on: every hostname would go to a person. @cr-conf-strands
+
+:::{#cr-conf-all}
+![](story_figs/conf-all.png)
+:::
+
+:::{#cr-conf-top}
+![](story_figs/conf-top.png)
+:::
+
+:::{#cr-conf-strands}
+![](story_figs/conf-strands.png)
+:::
+
+:::
+
+## From answers to decisions
+
+The household's weekly check doesn't block on the category alone. It proposes a block only when both option orders agree on a blocking category, with confidence of at least 0.85, **and** one of the other two questions agrees: an unwanted score of 2.5 or more, or an ad-tech answer of 0.5 or more. Anything doubtful goes to a person. The rule never unblocks anything.
+
+:::{.cr-section}
+
+Here are the unwanted scores, by model. <span class="key ad">Ad exchanges</span> sit near 3, *ad serving or tracking*, and <span class="key legit">ordinary sites</span> near 1. @cr-score-all
+
+The <span class="key tracker">trackers</span> sit near 2, which is the scale's own level for *third-party analytics*. The Decisions API put them at a median of `r sprintf("%.1f", trk_score[OA])`, below the 2.5 line. @cr-score-trk
+
+The ad-tech question doesn't rescue them either. The Decisions API reads it literally: analytics companies aren't ad-tech, so it put only `r trk_adtech[OA]` of the `r n_g(tg)` trackers over 0.5. Jev put `r trk_adtech["Jev"]`. @cr-adtech-trk
+
+So under this rule the Decisions API blocks `r vb(OA)` of the `r sum(hosts$unwanted_host)` unwanted hostnames automatically and sends `r vr(OA)` to a person, missing `r vm(OA)`. Jev blocks `r vb("Jev")`, sends `r vr("Jev")` and misses `r vm("Jev")`. Neither proposed blocking an ordinary site. The rule's cut-offs were set for Jev, which is part of why it comes out ahead here. @cr-rule
+
+:::{#cr-score-all}
+![](story_figs/score-all.png)
+:::
+
+:::{#cr-score-trk}
+![](story_figs/score-trk.png)
+:::
+
+:::{#cr-adtech-trk}
+![](story_figs/adtech-trk.png)
+:::
+
+:::{#cr-rule}
+![](story_figs/rule.png)
+:::
+
+:::
+
+::: {.story-body}
+
+## On the household's own traffic
+
+The same rule ran over `r hh_n` hostnames the household's devices actually looked up in two recent weeks. There is no answer key for these, so this only shows where the models agree. The hostnames themselves stay private.
+
+:::
+
+```{=html}
+<div class="stats">
+```
+
+```{r hh-stats, results='asis'}
+stat(as.character(alone_all), sprintf("of the %d hostnames were left alone by all four decision models", hh_n))
+stat(sprintf("%.0f%%", 100 * agree_oa_jev), "of hostnames where the Decisions API and Jev gave the same verdict")
+stat(as.character(hh_flag[OA]), sprintf("hostnames the Decisions API sent to a person (Jev: %d, plus %d blocked)", hh_flag["Jev"] - hh_block["Jev"], hh_block["Jev"]))
+stat(as.character(oa_new), "hostnames it flagged that Jev had left alone")
+```
+
+```{=html}
+</div>
+```
+
+::: {.story-body}
+
+`r if (length(mal_models)) sprintf("The worst mistake on the household's traffic came from %s, which called a well-known app's own service hostnames malicious, in both option orders. A rule that trusted it would have broken that app.", paste(mal_models, collapse = " and ")) else ""`
+
+## Speed, cost and privacy
+
+:::
+
+```{=html}
+<div class="cards">
+```
+
+```{r cost-cards, results='asis'}
+card <- function(name, lead, rows) cat(sprintf('<div class="card%s"><h3>%s</h3><dl>%s</dl></div>\n', if (lead) " lead" else "", name,
+  paste(sprintf("<dt>%s</dt><dd>%s</dd>", names(rows), rows), collapse = "")))
+card("OpenAI Decisions API", TRUE, c(Time = sprintf("%.2f s per hostname", ms_med(OA)), Cost = sprintf("$%.3f for %d hostnames", oa_in * 0.10 / 1e6, oa_n), Sees = "hostnames only"))
+card("Jev", FALSE, c(Time = sprintf("%.2f s (%d timed)", ms_med("Jev"), ms_n("Jev")), Cost = "no published price", Sees = "hostnames only"))
+card("Strands 2B", FALSE, c(Time = sprintf("%.2f s on a Mac", ms_med("Strands 2B")), Cost = "free", Sees = "nothing leaves the computer"))
+card("Strands E4B", FALSE, c(Time = sprintf("%.2f s on a Mac", ms_med("Strands E4B")), Cost = "free", Sees = "nothing leaves the computer"))
+if (have_son) card("Sonnet", FALSE, c(Time = sprintf("%.1f s, one prompt", median(son$latency_s)), Cost = "not priced here", Sees = "hostnames only"))
+```
+
+```{=html}
+</div>
+```
+
+::: {.story-body}
+
+Times are for two requests per hostname (forward and reversed options), except Sonnet's single prompt. The cloud models' times include the network. No service was ever sent a device name or an address, only the hostname.
+
+## Was it a fair test?
+
+Mostly, with limits worth knowing.
+
+- **Same inputs.** Every model saw only the hostname and the same questions. None could search the web: Sonnet's replies record `r son_tool_uses` tool uses across all `r son_replies`.
+- **The rule was built for Jev.** The 0.85 and 2.5 cut-offs were set for Jev, before the Decisions API was tested, so the decision-rule results favour Jev. The raw answers in the first section don't use any rule.
+- **Few, famous hostnames.** Thirty-six hand-labelled hostnames, mostly well-known ad companies, is a demonstration, not a benchmark. One or two hostnames either way is noise, and there are no truly hard cases.
+- **Sonnet had a different prompt.** It got category names without descriptions, was asked once, and wrote its numbers as text. It's a reference point, not a contestant.
+- **One run each, on different days.** Sonnet answered on 4 October and the decision models mostly on 18 October (some of Jev's answers date from 4 October). Nobody measured how much each model's answers vary from run to run.
+
+## What it means
+
+On this test the Decisions API did what it promises. It recognised every ad and tracker host with no false alarms, it was confident often enough for a program to act on, and at `r sprintf("$%.2f", oa_in * 0.10 / 1e6)` for `r oa_n` hostnames it is cheap. It is also the only model here with a published price.
+
+Its one quirk is that it reads questions literally. Asked whether an analytics company is ad-tech, it says no. Under a rule tuned for Jev, that means fewer automatic blocks and more for a person to review, not more mistakes. Jev stays the household's weekly check for now, and the Decisions API is a strong second opinion. The small Strands models aren't ready for this job yet.
+
+:::
+
+<p class="note">Sources: the test results saved on 4 and 18 October 2026. The Decisions API is in public beta, and gpt-6-luna may change before general release. Only the 36 public test hostnames and totals appear on this page.</p>

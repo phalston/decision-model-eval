@@ -13,8 +13,8 @@ import argparse, csv, glob, json, os, statistics, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import triage  # noqa: E402
 
-ORDER = ("jev-latest", "sonnet-claude-sonnet-5-5", "strands-decider-2B-qwen3.5-v1-2610", "strands-decider-E4B-gemma4-v1-2610")
-SHORT = {"jev-latest": "Jev", "sonnet-claude-sonnet-5-5": "Sonnet",
+ORDER = ("gpt-6-luna", "jev-latest", "sonnet-claude-sonnet-5-5", "strands-decider-2B-qwen3.5-v1-2610", "strands-decider-E4B-gemma4-v1-2610")
+SHORT = {"gpt-6-luna": "Decisions API", "jev-latest": "Jev", "sonnet-claude-sonnet-5-5": "Sonnet",
          "strands-decider-2B-qwen3.5-v1-2610": "Strands 2B", "strands-decider-E4B-gemma4-v1-2610": "Strands E4B"}
 
 
@@ -27,6 +27,7 @@ def main():
     ap.add_argument("--labels", default="data/labelled-hosts.csv")
     ap.add_argument("--results", default="results")
     ap.add_argument("--out", default="results/report.md")
+    ap.add_argument("--verdicts", default="results/verdicts.json", help="weekly-rule verdict per host and model, for analysis/")
     a = ap.parse_args()
 
     labels = {r["hostname"].strip().lower(): r["expected"].strip() for r in csv.DictReader(open(a.labels))}
@@ -54,6 +55,7 @@ def main():
       "malicious) with confidence >= %.2f and the ad-tech or unwanted question agrees; otherwise review or quiet. "
       "Sonnet was asked in one order only, so it has no column here.\n" % triage.MIN_CONF)
     v = {n: {h: triage.judge(h, f["hosts"][h])[0] for h in hosts} for n, _, f in two_orders}
+    json.dump(v, open(a.verdicts, "w"), indent=1, sort_keys=True)
     rows = [
         ("**Legit hosts proposed for block**", lambda n, f: pct(sum(v[n][h] == "block" for h in good), len(good))),
         ("Legit hosts sent to review", lambda n, f: pct(sum(v[n][h] == "review" for h in good), len(good))),

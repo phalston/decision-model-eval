@@ -1,0 +1,282 @@
+---
+title: "Decision models on a DNS question"
+subtitle: "Four decision models, and one general model for reference, decide whether Pi-hole hostnames are ads or trackers: what each gets right, how sure it is, and what it costs."
+format:
+  html:
+    theme: none
+    css: report.css
+    toc: false
+    embed-resources: true
+    fig-format: png
+    fig-dpi: 144
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+source("_data.R")
+
+# dark theme; group colours validated on this surface (dataviz validator, all pairs, dark)
+group_cols <- c("ad exchange" = "#d95926", "tracker" = "#3987e5", "legitimate" = "#199e70")
+theme_dm <- function() theme_minimal(base_size = 11) + theme(
+  plot.background = element_rect(fill = "#0f1512", colour = NA), panel.background = element_rect(fill = "#0f1512", colour = NA),
+  text = element_text(colour = "#e2e9e4"), axis.text = element_text(colour = "#93a39a"), strip.text = element_text(colour = "#e2e9e4", hjust = 0, face = "bold"),
+  panel.grid.major = element_line(colour = "#25312b"), panel.grid.minor = element_blank(),
+  legend.position = "none", plot.margin = margin(6, 12, 6, 6))
+strip_by_model <- function(x, xlab, cut, xlim) {
+  ggplot(lab_all, aes(.data[[x]], group, colour = group)) +
+    geom_vline(xintercept = cut, linetype = "dashed", colour = "#93a39a") +
+    geom_point(position = position_jitter(height = 0.2, width = 0, seed = 1), size = 2.2, alpha = 0.9) +   # fixed seed: same chart every render
+    scale_colour_manual(values = group_cols) + scale_x_continuous(limits = xlim) +
+    scale_y_discrete(limits = rev(grp_levels)) + facet_wrap(~model, ncol = 1) + labs(x = xlab, y = NULL) + theme_dm()
+}
+```
+
+Pi-hole blocks hostnames that are on its blocklists. Anything else is forwarded upstream and resolves, which is how an ad exchange got into an iPhone app on 4 Oct. Deciding whether an unlisted hostname is an ad or tracking host is a quick judgement call, and a new kind of model is built for exactly that.
+
+A **decision model** does not write text. You send it a piece of evidence (here, one hostname) and typed questions. It returns typed answers with probabilities that code can branch on, so there is nothing to parse and no prompt to coax.
+
+This report compares four decision models on the same job, with a general language model as a reference point. Nothing was blocked or changed on the Pi; every answer below was read from the saved results of the 18 Oct tests.
+
+## The models
+
+::: {.table-wrap}
+| Model | Made by | Kind | Runs on | Published price |
+|---|---|---|---|---|
+| **Jev** (`jev-latest`) | TypeSafe | decision model | TypeSafe API | none published |
+| **gpt-6-luna** | OpenAI, Decisions API (public beta) | decision model | OpenAI API | $0.10 per 1M input tokens, output free |
+| **Strands decider 2B** (qwen3.5) | Strands Agents, open weights | decision model | this Mac (MLX), offline | free |
+| **Strands decider E4B** (gemma4) | Strands Agents, open weights | decision model | this Mac (MLX), offline | free |
+| **Sonnet** (`claude-sonnet-5-5`) | Anthropic | general model, for reference | Anthropic API | not used here |
+:::
+
+All four decision models take the same three kinds of question, under different names:
+
+::: {.facts}
+<dl><div><dt>Category</dt><dd>Which one of these options fits? Returns the pick, a probability for each option and a confidence. Jev and Strands: <em>Choice</em>. OpenAI: <em>choice</em>.</dd></div>
+<div><dt>Score</dt><dd>Where does it sit on an ordered scale? Returns a position between levels. Everyone calls it <em>Score</em>.</dd></div>
+<div><dt>Yes/no</dt><dd>Is this statement true? Returns one probability. Jev and Strands: <em>Noul</em>. OpenAI: <em>predicate</em>.</dd></div></dl>
+:::
+
+## The test
+
+Each model got the same three questions about each hostname:
+
+- **Category:** what is its main purpose? There are seven options: advertising, tracking, telemetry, malicious, content, service, unknown.
+- **Unwanted score:** how unwanted is it on a home network? The scale runs from 0 (a site breaks without it) through 2 (third-party analytics) and 3 (ad serving or tracking) to 4 (malicious).
+- **Ad-tech yes/no:** is it run by an advertising or ad-tech company?
+
+The decision models were asked the category question a second time with the options in reverse order. A model that leans towards the first-listed option changes its answer when the order changes. Sonnet got the same questions in one plain-English prompt and replied in JSON.
+
+No model looked anything up. Each saw only the hostname and the questions, and answered from what it learned in training. Sonnet's requests offered no tools, so it had no web search; its saved answers record `r son_tool_uses` tool uses across all `r son_replies` replies.
+
+There are two sets of hostnames:
+
+- **`r nrow(hosts)` labelled by hand:** `r sum(hosts$expected == "ad")` ad exchanges, `r sum(hosts$expected == "tracker")` trackers and `r sum(hosts$expected == "legit")` legitimate hosts. These have a right answer.
+- **`r hs$household$n` from a household:** hostnames a home Pi-hole forwarded in two weeks of October. There is no right answer for these, so they show where the models agree. Only totals are published; the hostnames stay private.
+
+For `media.net`, an ad exchange, the category answers were: `r paste(sprintf("%s **%s** (%.2f)", ex$model, ex$category, ex$cat_conf), collapse = "; ")``r if (have_son) sprintf("; Sonnet **%s**", son$category[son$hostname == "media.net"]) else ""`.
+
+## 1. Raw answers on the labelled hosts
+
+These results use no decision rule and no confidence threshold, so they don't favour any model's calibration. Each cell shows *unwanted hosts caught (of `r sum(hosts$unwanted_host)`) · legitimate hosts caught (of `r sum(!hosts$unwanted_host)`)*. The first number should be high, the second 0.
+
+```{r rulefree, results='asis'}
+rf <- data.frame(Test = c("Category is advertising, tracking or malicious", "Unwanted score 2.5 or more", "Ad-tech yes/no 0.5 or more"), check.names = FALSE)
+for (m in models_all) { d <- lab_all[lab_all$model == m, ]
+  rf[[m]] <- c(caught(d, d$category %in% BLOCK), caught(d, d$unwanted >= 2.5), caught(d, d$p_adtech >= 0.5)) }
+wrap_table(rf)
+cat_caught <- sapply(models_all, \(m) { d <- lab_all[lab_all$model == m, ]; sum(d$category %in% BLOCK & d$unwanted_host) })
+cat_wrong <- sapply(models_all, \(m) { d <- lab_all[lab_all$model == m, ]; sum(d$category %in% BLOCK & !d$unwanted_host) })
+```
+
+```{r tiles, fig.width=6.6, fig.height=8.6}
+abbr <- c(advertising = "ad", tracking = "track", telemetry = "telem", malicious = "malw", content = "content", service = "service", unknown = "?")
+tl <- lab_all
+tl$cls <- ifelse(tl$category %in% BLOCK, "block", ifelse(tl$category == "unknown", "unknown", "other"))
+tl$txt <- abbr[tl$category]
+tl$hostname <- factor(tl$hostname, levels = rev(hosts$hostname[order(hosts$group, hosts$hostname)]))
+ggplot(tl, aes(model, hostname)) +
+  geom_tile(aes(fill = cls), colour = "#0f1512", linewidth = 0.8) +
+  geom_text(aes(label = txt, colour = cls), size = 2.9) +
+  scale_fill_manual(values = c(block = "#c9d4ce", other = "#1c2722", unknown = "#0f1512")) +
+  scale_colour_manual(values = c(block = "#0f1512", other = "#93a39a", unknown = "#93a39a")) +
+  scale_x_discrete(position = "top") + facet_grid(group ~ ., scales = "free_y", space = "free_y") +
+  labs(x = NULL, y = NULL) + theme_dm() +
+  theme(panel.grid.major = element_blank(), strip.text.y = element_text(angle = 0, hjust = 0), axis.text.x = element_text(colour = "#e2e9e4", face = "bold"))
+```
+
+<p class="note" style="margin-top:.3rem;padding-top:0;border:0">Each tile is one model's category for one hostname (forward option order). Light tiles name a blocking category: advertising, tracking or malicious. Dark tiles name another purpose; "?" means unknown.</p>
+
+<details><summary>The same answers as a table</summary>
+
+```{r tiles-table, results='asis'}
+tt <- reshape(tl[, c("hostname", "model", "category")], idvar = "hostname", timevar = "model", direction = "wide")
+names(tt) <- sub("^category\\.", "", names(tt))
+tt <- merge(hosts[, c("hostname", "expected")], tt, by = "hostname")
+tt <- tt[order(match(tt$expected, c("ad", "tracker", "legit")), tt$hostname), c("hostname", "expected", models_all)]
+names(tt)[1:2] <- c("Hostname", "Label")
+wrap_table(tt)
+```
+
+</details>
+
+```{r rulefree-takeaway, results='asis'}
+top <- names(cat_caught)[cat_caught == max(cat_caught)]
+cat('<div class="takeaway">', sprintf(
+  "On category alone, %s named a blocking category for %d of %d unwanted hosts. %s The Strands models named one for only %d (2B) and %d (E4B), answering \"unknown\" or \"content\" for many ad exchanges.",
+  paste(top, collapse = " and "), max(cat_caught), sum(hosts$unwanted_host),
+  if (all(cat_wrong == 0)) "No model put a legitimate host in a blocking category." else paste("Legitimate hosts put in a blocking category:", paste(sprintf("%s %d", names(cat_wrong), cat_wrong), collapse = ", "), "."),
+  cat_caught["Strands 2B"], cat_caught["Strands E4B"]), '</div>\n', sep = "")
+```
+
+### Unwanted score
+
+```{r score-plot, fig.width=7, fig.height=6.4}
+strip_by_model("unwanted", "unwanted score (0 essential ... 4 malicious), dashed line = 2.5", 2.5, c(0, 4))
+```
+
+```{r score-takeaway, results='asis'}
+med <- aggregate(unwanted ~ model + group, lab_all, median)
+mt <- function(m, g) med$unwanted[med$model == m & med$group == g]
+trk25 <- sapply(models_all, \(m) { d <- lab_all[lab_all$model == m & lab_all$group == "tracker", ]; sum(d$unwanted >= 2.5) })
+cat('<div class="takeaway">', sprintf(
+  "The score separates the groups for Jev, gpt-6-luna and Sonnet, with ad exchanges near 3, trackers near 2 and legitimate hosts near 1 (gpt-6-luna medians %.1f, %.1f and %.1f). Most trackers sit at the scale's own \"third-party analytics\" level, so a 2.5 line catches few of them: %s of %d. The Strands models squeeze everything into a narrow band (2B medians %.1f, %.1f and %.1f), so no single line separates ads from legitimate hosts.",
+  mt("gpt-6-luna", "ad exchange"), mt("gpt-6-luna", "tracker"), mt("gpt-6-luna", "legitimate"),
+  paste(sprintf("%s %d", names(trk25), trk25), collapse = ", "), sum(hosts$expected == "tracker"),
+  mt("Strands 2B", "ad exchange"), mt("Strands 2B", "tracker"), mt("Strands 2B", "legitimate")), '</div>\n', sep = "")
+```
+
+### Ad-tech yes/no
+
+```{r adtech-plot, fig.width=7, fig.height=6.4}
+strip_by_model("p_adtech", "probability the host is run by an ad-tech company, dashed line = 0.5", 0.5, c(0, 1))
+```
+
+```{r adtech-takeaway, results='asis'}
+tr <- function(m) { d <- lab_all[lab_all$model == m & lab_all$group == "tracker", ]; sum(d$p_adtech >= 0.5) }
+ad <- function(m) { d <- lab_all[lab_all$model == m & lab_all$group == "ad exchange", ]; sum(d$p_adtech >= 0.5) }
+cat('<div class="takeaway">', sprintf(
+  "Ad exchanges are run by ad-tech companies by definition, so this is a sharp test for them: %s of %d over 0.5. Trackers are mostly analytics companies, and the models disagree about whether that counts. Jev put %d of %d trackers over 0.5; gpt-6-luna put %d, reading the question literally. Ask the question that matches what you want to catch.",
+  paste(sprintf("%s %d", models_all, sapply(models_all, ad)), collapse = ", "), sum(hosts$expected == "ad"),
+  tr("Jev"), sum(hosts$expected == "tracker"), tr("gpt-6-luna")), '</div>\n', sep = "")
+```
+
+## 2. How sure each model is, and how steady
+
+A decision model also reports its confidence, which code can use to send the hard cases to a person. The confidence below is the lower of the two answers: options in forward order and in reverse. It covers all `r mstat("Jev", "n")` hostnames, the household's included.
+
+```{r confidence, results='asis'}
+cf <- data.frame(Measure = c("Category changed when the options were reversed", "Median confidence (lower of the two orders)",
+                             "Confidence 0.85 or more", "Middle half of confidences"), check.names = FALSE)
+for (m in names(dm)) { c2 <- conf_all$c[conf_all$model == m]; n <- mstat(m, "n")
+  q <- quantile(c2, c(.25, .75), names = FALSE)
+  cf[[m]] <- c(sprintf("%d of %d", mstat(m, "flips"), n), sprintf("%.2f", median(c2)),
+               sprintf("%d of %d", sum(c2 >= 0.85), n), sprintf("%.2f–%.2f", q[1], q[2])) }
+wrap_table(cf)
+conf_med <- sapply(names(dm), \(m) median(conf_all$c[conf_all$model == m]))
+flips <- sapply(names(dm), \(m) mstat(m, "flips"))
+cat('<div class="takeaway">', sprintf(
+  "All four changed their category for only a few hostnames when the options were reversed (%s). They differ much more in confidence. Jev and gpt-6-luna are usually sure (medians %.2f and %.2f); the Strands models almost never are (%.2f and %.2f). Low confidence on everything is no help as a signal: it sends every hostname to a person.",
+  paste(sprintf("%s %d", names(flips), flips), collapse = ", "), conf_med["Jev"], conf_med["gpt-6-luna"], conf_med["Strands 2B"], conf_med["Strands E4B"]),
+  '</div>\n', sep = "")
+```
+
+Sonnet reports a confidence only because the prompt asks for one: it is a number written in text, not a calibrated readout. In the 4 Oct test it never fell below `r if (have_son) sprintf("%.2f", min(son$conf, na.rm = TRUE)) else "n/a"`, so it is left out of this table.
+
+## 3. With a decision rule
+
+A decision needs a rule. The household's weekly triage (`judge()` in `triage.py`) proposes a block only when all of these hold:
+
+- both option orders name the same blocking category;
+- the lower confidence is at least 0.85;
+- the ad-tech answer or the unwanted score agrees.
+
+Anything doubtful goes to a person (*review*), and the triage never allows or unblocks anything. **The 0.85 and 2.5 cut-offs were set for Jev**, so this rule favours Jev's calibration. The results in section 1 are the fairer comparison. Sonnet can't be scored this way, because it gave no reversed-order answer.
+
+```{r weekly-labelled, results='asis'}
+if (!is.null(vd)) {
+  vl <- vd
+  wl <- data.frame(Measure = c(sprintf("Unwanted hosts proposed for block (of %d)", sum(hosts$unwanted_host)),
+                               "Unwanted hosts flagged (block or review)", "Unwanted hosts missed",
+                               sprintf("Legitimate hosts proposed for block (of %d)", sum(!hosts$unwanted_host)), "Legitimate hosts sent to review"), check.names = FALSE)
+  for (m in levels(vd$model)) { d <- vl[vl$model == m, ]
+    wl[[m]] <- c(sum(d$verdict == "block" & d$unwanted_host), sum(d$verdict %in% c("block", "review") & d$unwanted_host),
+                 sum(d$verdict == "quiet" & d$unwanted_host), sum(d$verdict == "block" & !d$unwanted_host), sum(d$verdict == "review" & !d$unwanted_host)) }
+  wrap_table(wl)
+  b <- sapply(levels(vd$model), \(m) sum(vl$verdict[vl$model == m] == "block" & vl$unwanted_host[vl$model == m]))
+  f <- sapply(levels(vd$model), \(m) sum(vl$verdict[vl$model == m] %in% c("block", "review") & vl$unwanted_host[vl$model == m]))
+  cat('<div class="takeaway">', sprintf(
+    "Under this rule Jev proposes the most blocks (%d), then gpt-6-luna (%d). gpt-6-luna still flags %d of %d unwanted hosts for a person, against Jev's %d. The Strands models propose none, because their confidence rarely reaches 0.85. No model proposed blocking a legitimate host.",
+    b["Jev"], b["gpt-6-luna"], f["gpt-6-luna"], sum(hosts$unwanted_host), f["Jev"]), '</div>\n', sep = "")
+}
+```
+
+## 4. The household's own hostnames
+
+These `r hs$household$n` hostnames are what a household's devices actually looked up. They have no labels, so this section shows where the models agree, not who is right. Verdicts use the same weekly rule.
+
+```{r household, results='asis'}
+if (have_hs) {
+  H <- hs$household; ms <- names(dm)
+  cnt <- data.frame(Verdict = c("block", "review", "quiet"), check.names = FALSE)
+  for (m in ms) cnt[[m]] <- sapply(cnt$Verdict, \(v) H$verdicts[[m]][[v]])
+  wrap_table(cnt)
+  agr <- function(a, b) { x <- H$agreement[[paste(a, b, sep = "|")]]; if (is.null(x)) H$agreement[[paste(b, a, sep = "|")]] else x }
+  ag <- outer(ms, ms, Vectorize(\(a, b) if (a == b) "" else sprintf("%.0f%%", 100 * agr(a, b))))
+  ag[lower.tri(ag, diag = TRUE)] <- ""
+  ag <- data.frame(Model = ms, ag, check.names = FALSE); names(ag)[-1] <- ms
+  cat("\nHow often two models gave the same verdict:\n")
+  wrap_table(ag[-nrow(ag), c("Model", ms[-1])])
+  fb <- H$flagged_by
+  cat(sprintf("\nOf %d hostnames, %d were left alone by all four models. %s. The hostnames themselves are not published.\n",
+              H$n, fb[["0"]], paste(sprintf("%d were flagged by %s", sapply(4:1, \(k) fb[[as.character(k)]]), c("all four", "three", "two", "only one")), collapse = ", ")))
+  mal <- unlist(H$malicious_both_orders)
+  blockers <- ms[sapply(ms, \(m) H$verdicts[[m]]$block > 0)]
+  cat('<div class="takeaway">', sprintf(
+    "The four mostly agree: every pair gives the same verdict on at least %.0f%% of hostnames, and almost everything is left alone. They disagree about which hosts go to a person, not about blocking: %d household hostname was proposed for blocking, by %s.%s",
+    100 * min(unlist(H$agreement)), sum(sapply(ms, \(m) H$verdicts[[m]]$block)), paste(blockers, collapse = " and "),
+    if (length(mal)) sprintf(" The worst error in this test was calling a well-known app's own service hostnames malicious in both option orders (%s).", paste(mal, collapse = " and ")) else ""),
+    '</div>\n', sep = "")
+}
+```
+
+## 5. Speed, cost and privacy
+
+```{r cost, results='asis'}
+sp <- function(m) c(mstat(m, "ms_median") / 1000, mstat(m, "ms_n"))
+tok <- function(m) c(mstat(m, "tokens_in_total"), mstat(m, "tokens_out_total")) / mstat(m, "n")
+luna_in <- mstat("gpt-6-luna", "tokens_in_total")
+ct <- data.frame(Measure = c("Requests per hostname", "Seconds per hostname (median)", "Tokens per hostname (in / out)",
+                             "Cost of this test", "Where hostnames go"), check.names = FALSE)
+for (m in names(dm)) { s <- sp(m); t <- tok(m)
+  ct[[m]] <- c("2", sprintf("%.2f (%d timed)", s[1], s[2]),
+               if (startsWith(m, "Strands")) "—" else if (m == "gpt-6-luna") sprintf("%.0f / not billed", t[1]) else sprintf("%.0f / %.0f", t[1], t[2]),
+               switch(m, `Jev` = "no published price", `gpt-6-luna` = sprintf("$%.3f for %d hostnames", luna_in * 0.10 / 1e6, mstat(m, "n")), "$0"),
+               switch(m, `Jev` = "TypeSafe", `gpt-6-luna` = "OpenAI", "nowhere (local)")) }
+if (have_son) ct$Sonnet <- c("1 (4 Oct)", sprintf("%.2f", median(son$latency_s)), sprintf("%.0f / %.0f", mean(son$tokens_in), mean(son$tokens_out)), "not priced here", "Anthropic")
+wrap_table(ct)
+s_l <- sp("gpt-6-luna"); s_2 <- sp("Strands 2B"); s_4 <- sp("Strands E4B")
+cat('<div class="takeaway">', sprintf(
+  "gpt-6-luna is the only model here with a published price: about $%.2f for all %d hostnames, at %.2f s each. The Strands models cost nothing and keep every hostname on the Mac, but take %.2f s (2B) and %.2f s (E4B) on this Mac's GPU. Only hostnames were ever sent to a service, never client addresses or device names.",
+  luna_in * 0.10 / 1e6, mstat("gpt-6-luna", "n"), s_l[1], s_2[1], s_4[1]), '</div>\n', sep = "")
+```
+
+<p class="note" style="margin-top:.6rem;padding-top:0;border:0">Jev's time comes from only the hostnames it was asked on 18 Oct; its other answers were saved earlier, when no time was recorded. Jev's and gpt-6-luna's times include the network; the Strands models ran on this Mac. Sonnet's is for one prompt on 4 Oct, so it isn't comparable.</p>
+
+## What this shows
+
+```{r verdict, results='asis'}
+cat('<div class="takeaway">',
+    sprintf("<strong>Jev and gpt-6-luna are both usable for this job; the Strands deciders are not yet.</strong> Jev and gpt-6-luna named a blocking category for %d and %d of %d unwanted hosts, with no false alarms on legitimate ones, and both are confident enough for a rule to act on. The Strands models caught %d and %d. They keep everything on the Mac at no cost, but their low confidence sends nearly everything to a person.",
+            cat_caught["Jev"], cat_caught["gpt-6-luna"], sum(hosts$unwanted_host), cat_caught["Strands 2B"], cat_caught["Strands E4B"]),
+    '</div>\n<div class="takeaway">',
+    "<strong>Jev and gpt-6-luna differ in temperament.</strong> gpt-6-luna reads questions literally: it says analytics companies are not ad-tech, and scores them at the scale's analytics level. Under a rule tuned for Jev that means fewer automatic blocks and more for a person to review, not more mistakes. It is also the only one of the two with a published price.",
+    '</div>\n<div class="takeaway">',
+    if (have_son) sprintf("<strong>A general model can do the classification too.</strong> Sonnet named a blocking category for %d of %d, with no web access: its edge is a large model's general knowledge of company names. Its confidence is a number it writes, not a calibrated readout, and it gives no option-order check, so a rule can't tell its easy answers from its hard ones.", cat_caught["Sonnet"], sum(hosts$unwanted_host)) else "",
+    '</div>\n', sep = "")
+```
+
+<p class="note">Thirty-six hand-labelled hostnames make a demonstration, not a benchmark: one or two hostnames either way is noise. The household hostnames have no labels, so agreement there isn't accuracy. The decision models' confidences are their makers' own claims of calibration, which were not checked independently. Jev's labelled answers are from `r first_day("Jev")`–18 Oct; the other decision models answered on 18 Oct. gpt-6-luna is in public beta and may change. Sources: `results/answers-*.json` and `results/verdicts.json` (the 36 labelled hostnames, from `ask.py` and `compare.py`), and `data/household-summary.json` (household totals, no hostnames).</p>

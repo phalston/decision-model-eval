@@ -1,0 +1,4 @@
+# Rendered pages and their working files (the HTML is built by render.sh; *.html is ignored at the repo root too)
+*.html
+*_files/
+story_figs/

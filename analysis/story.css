@@ -1,0 +1,45 @@
+/* Story layout for decision-models-story.qmd (closeread): dark, sans-serif (Libre Franklin), same palette as decision-models. */
+:root {
+  --bg: #0f1512; --fg: #e2e9e4; --muted: #93a39a; --rule: #25312b; --panel: #161f1b;
+  --accent: #5fc7ac; --ad: #d95926; --tracker: #3987e5; --legit: #199e70;
+  --sans: "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+html, body { background: var(--bg) !important; color: var(--fg) !important; }
+body { font-family: var(--sans); font-size: 1.06rem; line-height: 1.6; }
+a { color: var(--accent); }
+p, li { max-width: 36em; }
+
+/* opening */
+.story-hero { max-width: 46rem; margin: 3.5rem auto 2rem; padding: 0 16px; }
+.story-hero .kicker { font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 .8rem; }
+.story-hero h1 { font-weight: 800; font-size: clamp(2rem, 5.6vw, 3.2rem); line-height: 1.08; letter-spacing: -.015em; margin: 0 0 1rem; color: var(--fg); text-wrap: balance; }
+.story-hero .dek { font-size: clamp(1.08rem, 2.4vw, 1.3rem); line-height: 1.45; color: var(--muted); margin: 0 0 1.2rem; max-width: 38em; text-wrap: pretty; }
+.story-hero .byline { font-size: .82rem; color: var(--muted); margin: 0; }
+.story-body { width: 100%; box-sizing: border-box; min-width: 0; max-width: 46rem; margin: 0 auto; padding: 0 16px; }
+.story-body h2 { font-weight: 800; font-size: 1.45rem; margin: 3rem 0 .6rem; color: var(--fg); }
+strong { color: var(--fg); }
+code, p code, .narrative code { font-family: ui-monospace, Menlo, monospace; font-size: .86em; background: var(--panel) !important; color: var(--fg) !important; padding: .05em .35em; border-radius: 3px; overflow-wrap: anywhere; white-space: pre-wrap; }
+
+/* the five models */
+.cards { width: 100%; min-width: 0; box-sizing: border-box; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(10.5rem, 100%), 1fr)); gap: 12px; max-width: 58rem; margin: 1.8rem auto 2.6rem; padding: 0 16px; }
+.card { background: var(--panel); border-radius: 6px; padding: .8rem .9rem; border-top: 3px solid var(--rule); }
+.card.lead { border-top-color: var(--accent); }
+.card h3 { font-size: 1rem; font-weight: 800; margin: 0 0 .15rem; color: var(--fg); }
+.card .who { font-size: .78rem; color: var(--muted); margin: 0 0 .55rem; }
+.card dl { margin: 0; font-size: .8rem; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+.card dt { color: var(--muted); font-weight: 400; } .card dd { margin: 0; color: var(--fg); }
+
+/* headline numbers */
+.stats { width: 100%; min-width: 0; box-sizing: border-box; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(10rem, 100%), 1fr)); gap: 18px; max-width: 54rem; margin: 2.5rem auto; padding: 1.4rem 16px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.stat .num { font-weight: 800; font-size: 2.4rem; line-height: 1; color: var(--accent); }
+.stat .lab { font-size: .82rem; color: var(--muted); margin-top: .4rem; max-width: 17em; }
+
+/* closeread */
+.cr-section { background-color: var(--bg) !important; }
+.cr-section .narrative-col .narrative { font-size: 1.04rem; line-height: 1.55; }
+.cr-section .sticky-col img { max-height: 92vh; width: auto; max-width: 100%; margin: 0 auto; display: block; }
+.key { font-weight: 700; padding: 0 .3em; border-radius: 3px; color: #fff; white-space: nowrap; }
+.key.ad { background: var(--ad); } .key.tracker { background: var(--tracker); } .key.legit { background: var(--legit); }
+.note { font-size: .8rem; color: var(--muted); max-width: 46rem; margin: 3rem auto; padding: 1rem 16px 0; border-top: 1px solid var(--rule); }
+.proto { font-size: .9rem; background: var(--panel); color: var(--muted); padding: 12px 14px; border-radius: 6px; max-width: 46rem; margin: 2rem auto; }
