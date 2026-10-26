@@ -2,3 +2,10 @@
 __pycache__/
 .DS_Store
 *.html
+# ...except the published site, built by analysis/render.sh
+!docs/*.html
+# Real catalogs (tickets, customer text) and their answers stay local; only the synthetic example is published.
+tasks/*
+!tasks/ticket-triage-example/
+results/*/
+.claude/

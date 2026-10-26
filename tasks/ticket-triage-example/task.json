@@ -1,0 +1,22 @@
+{
+ "name": "ticket-triage-example",
+ "about": "SYNTHETIC example: 14 made-up tickets to show the file format and check the pipeline. Copy this folder for a real catalog.",
+ "items": "tickets.csv",
+ "id_column": "ticket_id",
+ "label_column": "true_type",
+ "submitted_column": "submitted_type",
+ "state_template": "Ticket title: {title}\nDescription: {description}",
+ "max_state_chars": 4000,
+ "question": "What kind of request is this ticket really, whatever type the requester picked?",
+ "options": {
+  "access_request": "Someone needs access, a role or a licence for a system that is already approved for use",
+  "enable_feature": "Turn on or configure an option of a tool the organisation already uses, with no new data flows, vendor or autonomy",
+  "new_capability": "Adopt a new tool, vendor, integration or AI agent, or let software act on its own with data or permissions it does not have today; needs architecture and risk review",
+  "incident": "Something that used to work is broken, slow or unavailable, with no sign of misuse",
+  "security_incident": "Signs of compromise or misuse: unknown apps or accounts, access nobody granted, phishing, data exposure, or something that resists removal",
+  "how_to": "A question about how to do something; nothing needs to change",
+  "other": "None of the above"
+ },
+ "min_confidence": 0.85,
+ "high_stakes": ["security_incident"]
+}
