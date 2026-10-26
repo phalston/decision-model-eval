@@ -1,6 +1,7 @@
 #!/bin/bash
 # Render the two pages from what this repo holds (results/, data/): no API calls, no keys.
-#   bash analysis/render.sh            -> analysis/decision-models.html (report) and analysis/decision-models-story.html (story)
+#   bash analysis/render.sh            -> analysis/decision-models.html (report) and analysis/decision-models-story.html (story),
+#                                         copied to docs/report.html and docs/index.html for GitHub Pages
 # Needs quarto and R (jsonlite, ggplot2, knitr, rmarkdown); the story's first render downloads its font to embed it.
 # Refresh the inputs first: python3 compare.py (writes results/report.md and results/verdicts.json);
 # data/household-summary.json comes from the Pi-hole repo's scripts/mac/export_eval_summary.py.
@@ -10,4 +11,7 @@ for f in decision-models.qmd decision-models-story.qmd; do
   quarto render "$f" 2>&1 | grep -E 'ERROR|Error|Output created' || true
 done
 rm -rf story_figs decision-models_files decision-models-story_files
-ls -l decision-models.html decision-models-story.html
+# The GitHub Pages site (Settings -> Pages -> main, /docs): the story is the home page, the report sits beside it.
+mkdir -p ../docs && touch ../docs/.nojekyll
+cp decision-models-story.html ../docs/index.html && cp decision-models.html ../docs/report.html
+ls -l decision-models.html decision-models-story.html ../docs/index.html ../docs/report.html

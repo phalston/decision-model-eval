@@ -387,4 +387,4 @@ Its one quirk is that it reads questions literally. Asked whether an analytics c
 
 :::
 
-<p class="note">Sources: the test results saved on 4 and 18 October 2026. The Decisions API is in public beta, and gpt-6-luna may change before general release. Only the 36 public test hostnames and totals appear on this page.</p>
+<p class="note">Sources: the test results saved on 4 and 18 October 2026. The Decisions API is in public beta, and gpt-6-luna may change before general release. Only the 36 public test hostnames and totals appear on this page. The same results as a short read: <a href="report.html">Decision Models on a DNS Question</a>.</p>
